@@ -1,0 +1,162 @@
+{% extends 'blog/base.html' %} 
+{% block title %}Chat{% endblock %} 
+{% block content %}
+
+<div class="col-md-8 m-auto">
+  <div class="container content-section px-0 py-0">
+    <div class="bg-gray py-1 px-3">
+      <p class="h5 mb-0 py-2">
+        <span class="img-cont2">
+          <img
+            src="{{friend_name.profile.image.url}}"
+            alt="user"
+            width="50"
+            height="50"
+            class="rounded-circle"
+          />
+          {% if friend_name.profile.is_online %}
+          <span class="online-circle3"></span>
+          {% else %}
+          <span class="offline-circle3"></span>
+          {% endif %}
+        </span>
+        &nbsp;&nbsp;{{friend_name}}
+      </p>
+      <hr />
+    </div>
+
+    <!-- Chat Box-->
+    <div id="chat-section" class="px-0">
+      <div id="chat-box" class="chat-text-add py-5 px-4 chat-box bg-white">
+        <!-- OLD CHATS ARE FETCHED FROM DATABASE AND NEW ONES ARE APPENDED BELOW -->
+        {% for chat in old_chats %} 
+          {% if chat.author != request.user %}
+            <!-- Sender Message-->
+            <div class="media w-75 mb-3">
+              <img
+                src="{{chat.author.profile.image.url}}"
+                alt="user"
+                width="40"
+                height="40"
+                class="rounded-circle"
+              />
+              <div class="media-body ml-3">
+                <div class="bg-light rounded py-2 px-3 mb-2">
+                  <p class="text-small mb-0 text-muted">{{chat.text}}</p>
+                </div>
+                <p class="small text-muted">{{chat.date}}</p>
+              </div>
+            </div>
+          {% else %}
+            <!-- Receiver Message-->
+            <div class="media w-75 ml-auto mb-3">
+              <div class="media-body">
+                <div class="bg-primary rounded py-2 px-3 mb-2">
+                  <p class="text-small mb-0 text-white">{{chat.text}}</p>
+                </div>
+                <p class="small text-muted">{{chat.date}}</p>
+              </div>
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    <br />
+
+    <div class="px-0">
+      <!-- Typing area -->
+      <form id="chat-form" class="bg-light chat-form">
+        <div class="input-group">
+          <input
+            id="input"
+            name="body"
+            type="text"
+            placeholder="Type your message here"
+            aria-describedby="submit"
+            class="form-control rounded-0 border-0 py-4 bg-light"
+            required
+          />
+          <div class="input-group-append">
+            <button id="submit" type="submit" class="btn btn-link">
+              <i class="fa fa-paper-plane"></i>
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<br />
+
+{% endblock %} 
+
+{% block script %}
+{{ request.user.username|json_script:"user_username" }} 
+{{ room_name|json_script:"room-name" }} 
+{{ request.user.profile.image.url|json_script:"user_image"}}
+
+<script>
+  const userUsername = JSON.parse(
+    document.getElementById("user_username").textContent
+  );
+  const roomName = JSON.parse(document.getElementById("room-name").textContent);
+  const userImage = JSON.parse(
+    document.getElementById("user_image").textContent
+  );
+  const chatBox = document.getElementById("chat-box");
+  const chatForm = document.getElementById("chat-form");
+  const input = document.getElementById("input");
+
+  const chatSocket = new WebSocket(
+      (window.location.protocol === "https:" ? "wss://" : "ws://") +
+      window.location.host +
+      `/ws/chat/${roomName}/`
+  );
+  
+  chatSocket.onopen = function(event) {
+    console.log('WebSocket connection opened:', event);
+  };
+
+  chatSocket.onmessage = function (event) {
+    console.log('Message received:', event.data);
+    const message = JSON.parse(event.data);
+    const date = new Date().toLocaleString(); // Format date
+    const messageElement = document.createElement('div');
+    messageElement.className = "media w-75 ml-auto mb-3";
+    messageElement.innerHTML = `
+      <div class="media-body">
+        <div class="bg-primary rounded py-2 px-3 mb-2">
+          <p class="text-small mb-0 text-white">${message.message}</p>
+        </div>
+        <p class="small text-muted">${date}</p>
+      </div>
+    `;
+    chatBox.appendChild(messageElement);
+  };
+
+  chatSocket.onerror = function(error) {
+    console.error('WebSocket Error:', error);
+  };
+
+  chatSocket.onclose = function(event) {
+    console.log('WebSocket connection closed:', event);
+  };
+
+  chatForm.addEventListener("submit", function (event) {
+    event.preventDefault();
+    const messageInput = input.value.trim(); // Trim whitespace
+    if (messageInput !== "") {
+      // Check if message is not empty
+      chatSocket.send(
+        JSON.stringify({
+          message: messageInput,
+          username: userUsername,
+          user_image: userImage,
+        })
+      );
+      input.value = "";
+    }
+  });
+</script>
+{% endblock %}
